@@ -12,6 +12,7 @@ using HtmlAgilityPack;
 
 namespace DAClipper4
 {
+    // Program icon link: http://matrixchicken.deviantart.com/art/Sweetie-Derelle-Vector-338032170
     public partial class Form1 : Form
     {
         string clip;
