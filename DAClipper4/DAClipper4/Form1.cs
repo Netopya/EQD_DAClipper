@@ -164,7 +164,6 @@ namespace DAClipper4
 
             if (e.ProgressPercentage != 100) return;
 
-            button1.Enabled = true;
             txtConsole.Text = "";
 
             ClipResult result = (ClipResult)e.UserState;
@@ -174,6 +173,7 @@ namespace DAClipper4
                 
                 txtConsole.AppendText(result.status + System.Environment.NewLine);
                 txtConsole.AppendText(result.message);
+                ModifyProgressBarColor.SetState(progressBar1, 2);
                 return;
             }
 
@@ -233,6 +233,16 @@ namespace DAClipper4
         private void button2_Click(object sender, EventArgs e)
         {
             Clipboard.SetText(textBox2.Text);
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            txtConsole.Text = "";
+            textBox2.Text = "";
+            richTextBox1.Text = "";
+            progressBar1.Value = 0;
+            button1.Enabled = true;
+            ModifyProgressBarColor.SetState(progressBar1, 1);
         }
     }
 }
