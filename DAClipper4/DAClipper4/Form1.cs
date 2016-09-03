@@ -29,6 +29,7 @@ namespace DAClipper4
             public IEnumerable<string> LinkDupes;
             public IEnumerable<int> SourceDupes;
             public IEnumerable<int> SourceMissing;
+            public IEnumerable<ParsedLink> BrokenDeviantArtLinks;
         }
 
         private class ParsedLink {
@@ -36,6 +37,7 @@ namespace DAClipper4
             public string InnerText;
             public bool Valid;
             public bool JValid;
+            public bool DeviantArt; // Link contains deviant art?
             public int Source;
 
             public ParsedLink(HtmlAgilityPack.HtmlNode node)
@@ -43,9 +45,21 @@ namespace DAClipper4
                 Url = node.GetAttributeValue("href","");
                 InnerText = node.InnerText;
 
-                JValid = Url.Contains("deviantart");
+                DeviantArt = Url.Contains("deviantart");
+                Uri uriResult;
 
-                //Valid = !(!JValid && !InnerText.Contains("ource") || node.Descendants("img").Count() > 0);
+                bool validLinkResult = Uri.TryCreate(Url, UriKind.Absolute, out uriResult)
+                    && uriResult.Scheme == Uri.UriSchemeHttp;
+
+                if(validLinkResult)
+                {
+                    JValid = uriResult.Host.Contains("deviantart");
+                }
+                else
+                {
+                    JValid = false;
+                }
+
                 Valid = (JValid && InnerText.Contains("ource")) || InnerText.Contains("ource");
 
                 Match match = Regex.Match(InnerText, @"(\d+)");
@@ -55,6 +69,22 @@ namespace DAClipper4
                     Source = -1;
                 }
 
+            }
+
+            public Color GetColour()
+            {
+                if(JValid)
+                {
+                    return Color.Green;
+                }
+                else if(!JValid && DeviantArt)
+                {
+                    return Color.Orange;
+                }
+                else
+                {
+                    return Color.Red;
+                }
             }
         }
 
@@ -109,19 +139,19 @@ namespace DAClipper4
             int max = numeratedSources.Max();
             IEnumerable<int> sourceMissing = Enumerable.Range(1, max).Except(numeratedSources);
 
+            IEnumerable<ParsedLink> brokenDAlinks = parsedLinks.Where(l => l.DeviantArt && !l.JValid);
 
-            //string finalLinks = 
-
-            backgroundWorker1.ReportProgress(100, new ClipResult() 
-            { 
-                status = "success", 
-                ParsedLinks = parsedLinks, 
-                LinkDupes = linkDupes, 
-                SourceDupes = sourceDupes,  
+            backgroundWorker1.ReportProgress(100, new ClipResult()
+            {
+                status = "success",
+                ParsedLinks = parsedLinks,
+                LinkDupes = linkDupes,
+                SourceDupes = sourceDupes,
                 SourceMissing = sourceMissing,
                 JLinksCount = parsedLinks.Where(l => l.JValid).Count(),
-                JLinks = parsedLinks.Where(l => l.JValid).Select(j => j.Url).Aggregate((a,b) => string.Format("{0}{1}{2}", a, System.Environment.NewLine, b)),
-                Title = titleNode.InnerText
+                JLinks = parsedLinks.Where(l => l.JValid).Select(j => j.Url).Aggregate((a, b) => string.Format("{0}{1}{2}", a, System.Environment.NewLine, b)),
+                Title = titleNode.InnerText,
+                BrokenDeviantArtLinks = brokenDAlinks                
             });
 
 
@@ -130,8 +160,6 @@ namespace DAClipper4
 
         private void backgroundWorker1_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
-            //MessageBox.Show((String)e.UserState);
-
             progressBar1.Value = e.ProgressPercentage;
 
             if (e.ProgressPercentage != 100) return;
@@ -151,7 +179,7 @@ namespace DAClipper4
 
             foreach (ParsedLink link in result.ParsedLinks)
             {
-                richTextBox1.SelectionColor = link.JValid ? Color.Green : Color.Red;
+                richTextBox1.SelectionColor = link.GetColour();
                 richTextBox1.AppendText(link.InnerText + " " + link.Url + System.Environment.NewLine);
             }
 
@@ -186,15 +214,19 @@ namespace DAClipper4
                 }
             }
 
+            if (result.BrokenDeviantArtLinks.Count() > 0)
+            {
+                txtConsole.AppendText(string.Format("The following images ({0}) have broken DeviantArt links:{1}", result.BrokenDeviantArtLinks.Count(), System.Environment.NewLine));
+                foreach(ParsedLink link in result.BrokenDeviantArtLinks)
+                {
+                    txtConsole.AppendText(string.Format("   Source[{0}]: {1}{2}", link.Source, link.Url, System.Environment.NewLine));
+                }
+            }
+
+
             textBox2.Text = result.JLinks;
             
             txtConsole.AppendText(System.Environment.NewLine + "Thank you for using EQD DA Clipper!");
-
-            //IEnumerable<ParsedLink> ParsedLinks = (IEnumerable<ParsedLink>)e.UserState;
-
-           // string outText = string.Join(System.Environment.NewLine, ParsedLinks.Select(l => l.InnerText + " " + l.Source + " " + l.Url));
-
-            //txtConsole.Text = outText;
 
         }
 
