@@ -50,7 +50,7 @@ namespace DAClipper4
                 Uri uriResult;
 
                 bool validLinkResult = Uri.TryCreate(Url, UriKind.Absolute, out uriResult)
-                    && uriResult.Scheme == Uri.UriSchemeHttp;
+                    && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps);
 
                 if(validLinkResult)
                 {
