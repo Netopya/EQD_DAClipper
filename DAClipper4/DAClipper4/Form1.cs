@@ -93,7 +93,7 @@ namespace DAClipper4
                         {
                             var links = sibling.Descendants("a");
 
-                            var possibleImageLinks = links.First(l => new [] { "jpg", "jpeg", "png", "gif" }.Any(e => l.GetAttributeValue("href", "").ToLower().Contains(e)));
+                            var possibleImageLinks = links.FirstOrDefault(l => new [] { "jpg", "jpeg", "png", "gif" }.Any(e => l.GetAttributeValue("href", "").ToLower().Contains(e)));
 
                             if(possibleImageLinks != null)
                             {
