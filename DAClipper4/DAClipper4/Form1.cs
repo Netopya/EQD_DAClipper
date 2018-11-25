@@ -35,24 +35,24 @@ namespace DAClipper4
         }
 
         private class ParsedLink {
-            public string Url;
+            public List<string> Url = new List<string>();
             public string OriginalUrl;
             public string InnerText;
             public bool Valid;
             public bool JValid;
             public bool DeviantArt; // Link contains deviant art?
-            public bool AlternativeProposed;
+            public bool AlternativeProposed = false;
             public int Source;
 
             public ParsedLink(HtmlAgilityPack.HtmlNode node)
             {
-                Url = node.GetAttributeValue("href","");
+                Url.Add(node.GetAttributeValue("href", ""));
                 InnerText = node.InnerText;
 
                 DeviantArt = Url.Contains("deviantart");
                 Uri uriResult;
 
-                bool validLinkResult = Uri.TryCreate(Url, UriKind.Absolute, out uriResult)
+                bool validLinkResult = Uri.TryCreate(Url[0], UriKind.Absolute, out uriResult)
                     && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps);
 
                 if(validLinkResult)
@@ -64,7 +64,7 @@ namespace DAClipper4
                     JValid = false;
                 }
 
-                Valid = (JValid && InnerText.Contains("ource")) || InnerText.Contains("ource");
+                Valid = (JValid && InnerText.Contains("ource")) || InnerText.Contains("ource") || JValid;
 
                 Match match = Regex.Match(InnerText, @"(\d+)");
 
@@ -80,6 +80,9 @@ namespace DAClipper4
                     var sibling = parent.NextSibling;
                     while(sibling != null)
                     {
+                        if (sibling.Name == "a")
+                            break;
+
                         // Check to see if we've moved onto another source's link
                         if(sibling.Name == "b")
                         {
@@ -97,11 +100,14 @@ namespace DAClipper4
 
                             if(possibleImageLinks != null)
                             {
-                                OriginalUrl = Url;
-                                Url = possibleImageLinks.GetAttributeValue("href", "");
+                                if (!AlternativeProposed)
+                                {
+                                    OriginalUrl = Url[0];
+                                    Url.Clear();
+                                }
+                                Url.Add(possibleImageLinks.GetAttributeValue("href", ""));
                                 AlternativeProposed = true;
                                 JValid = true;
-                                break;
                             }
                         }
 
@@ -189,7 +195,7 @@ namespace DAClipper4
                 SourceDupes = sourceDupes,
                 SourceMissing = sourceMissing,
                 JLinksCount = parsedLinks.Where(l => l.JValid).Count(),
-                JLinks = parsedLinks.Where(l => l.JValid).Select(j => j.Url).Aggregate((a, b) => string.Format("{0}{1}{2}", a, System.Environment.NewLine, b)),
+                JLinks = parsedLinks.Where(l => l.JValid).Select(j => j.Url).SelectMany(l => l).Aggregate((a, b) => string.Format("{0}{1}{2}", a, System.Environment.NewLine, b)),
                 Title = titleNode.InnerText,
                 BrokenDeviantArtLinks = brokenDAlinks,
                 AlternativeLinks = parsedLinks.Where(l => l.AlternativeProposed)                                
@@ -219,15 +225,35 @@ namespace DAClipper4
             {
                 richTextBox1.SelectionColor = link.GetColour();
                 if (!link.AlternativeProposed)
-                    richTextBox1.AppendText(link.InnerText + " " + link.Url + System.Environment.NewLine);
+                {
+                    if (link.Url.Count == 1)
+                    {
+                        richTextBox1.AppendText(link.InnerText + " " + link.Url[0] + Environment.NewLine);
+                    }
+                    else
+                    {
+                        richTextBox1.AppendText(link.InnerText + Environment.NewLine);
+                        richTextBox1.AppendText(link.Url.Select(l => "    " + l + Environment.NewLine).Aggregate((a, b) => a + b));
+                    }
+                }
                 else
-                    richTextBox1.AppendText(string.Format("{1}{0}    Original: {2}{0}    Proposed: {3}{0}", Environment.NewLine, link.InnerText, link.OriginalUrl, link.Url));
+                {
+                    if (link.Url.Count == 1)
+                    {
+                        richTextBox1.AppendText(string.Format("{1}{0}    Original: {2}{0}    Proposed: {3}{0}", Environment.NewLine, link.InnerText, link.OriginalUrl, link.Url[0]));
+                    } else
+                    {
+                        richTextBox1.AppendText(string.Format("{1}{0}    Original: {2}{0}    Proposed:{0}", Environment.NewLine, link.InnerText, link.OriginalUrl));
+                        richTextBox1.AppendText(link.Url.Select(l => "    " + l + Environment.NewLine).Aggregate((a, b) => a + b));
+                    }
+                }
             }
 
             txtConsole.AppendText("Results for " + result.Title + System.Environment.NewLine + System.Environment.NewLine);
             
             txtConsole.AppendText("Links Analyzed: " + result.ParsedLinks.Count() + System.Environment.NewLine);
-            txtConsole.AppendText("Valid JDownload Links found: " + result.JLinksCount + System.Environment.NewLine + System.Environment.NewLine);
+            txtConsole.AppendText("Valid JDownload Links found: " + result.JLinksCount + System.Environment.NewLine);
+            txtConsole.AppendText("Total Links found: " + result.ParsedLinks.Select(l => l.Url.Count).Sum() + System.Environment.NewLine + System.Environment.NewLine);
 
             if(result.LinkDupes.Count() > 0){
                 txtConsole.AppendText(string.Format("Duplicate links ({0}) found at:{1}", result.LinkDupes.Count(), System.Environment.NewLine));
@@ -260,7 +286,7 @@ namespace DAClipper4
                 txtConsole.AppendText(string.Format("The following images ({0}) have broken DeviantArt links:{1}", result.BrokenDeviantArtLinks.Count(), System.Environment.NewLine));
                 foreach(ParsedLink link in result.BrokenDeviantArtLinks)
                 {
-                    txtConsole.AppendText(string.Format("   Source[{0}]: {1}{2}", link.Source, link.Url, System.Environment.NewLine));
+                    txtConsole.AppendText(string.Format("   Source[{0}]: {1}{2}", link.Source, link.Url[0], System.Environment.NewLine));
                 }
             }
 
@@ -269,7 +295,7 @@ namespace DAClipper4
                 txtConsole.AppendText(string.Format("The following images ({0}) are not deviant art links and the image preview is being used:{1}", result.AlternativeLinks.Count(), System.Environment.NewLine));
                 foreach(ParsedLink link in result.AlternativeLinks)
                 {
-                    txtConsole.AppendText(string.Format("   Source[{0}]: {1}{2}", link.Source, link.Url, System.Environment.NewLine));
+                    txtConsole.AppendText(string.Format("   Source[{0}]: {1}", link.Source, link.Url.Select(l => l + Environment.NewLine).Aggregate((a, b) => a + b)));
                 }
             }
 
